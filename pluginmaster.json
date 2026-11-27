@@ -3,9 +3,9 @@
     "Author": "Aki",
     "Name": "StockTracker",
     "InternalName": "StockTracker",
-    "AssemblyVersion": "0.3.0.0",
+    "AssemblyVersion": "0.4.0.0",
     "DalamudApiLevel": 15,
-    "LastUpdate": "1795786233",
+    "LastUpdate": "1795787279",
     "ApplicableVersion": "any",
     "Punchline": "Know which crafted items sold and need to be recrafted.",
     "Description": "Maintain one or more named lists of items you craft and sell, each with a target stock quantity. StockTracker watches the item's total market listing quantity across all of your retainers combined (via Allagan Tools, if installed) and automatically builds a 'needs recraft' list whenever a tracked item's total stock drops below its target - clearing it again once you restock. Optionally adds a right-click entry to the Crafting Log to add the selected recipe straight to a list (toggle in Settings). Commands: /stocktracker, /st. Requires Allagan Tools (InventoryTools).",
@@ -13,7 +13,7 @@
     "IconUrl": "https://raw.githubusercontent.com/Landelor/StockTracker/master/images/icon.png",
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Landelor/StockTracker/releases/download/0.3.0.0/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Landelor/StockTracker/releases/download/0.3.0.0/latest.zip"
+    "DownloadLinkInstall": "https://github.com/Landelor/StockTracker/releases/download/0.4.0.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Landelor/StockTracker/releases/download/0.4.0.0/latest.zip"
   }
 ]
