@@ -12,20 +12,92 @@ public sealed partial class MainWindow
     private string addItemSearch = string.Empty;
     private ItemChoice? addItemSelected;
     private int addTargetQuantity = 1;
-    private ulong addRetainerId;
+    private string newListName = string.Empty;
+
+    private TrackedList CurrentList()
+    {
+        var list = plugin.Config.Lists.FirstOrDefault(l => l.Id == selectedListId)
+                   ?? plugin.Config.Lists.FirstOrDefault();
+        if (list is null)
+        {
+            list = new TrackedList { Name = "Default" };
+            plugin.Config.Lists.Add(list);
+            plugin.SaveConfig();
+        }
+
+        selectedListId = list.Id;
+        return list;
+    }
 
     private void DrawTrackedItemsTab()
     {
-        DrawAddItemForm();
+        var list = DrawListSelector();
+        AdtStyling.VSpace(8f);
+        ImGui.Separator();
+        AdtStyling.VSpace(6f);
+
+        DrawAddItemForm(list);
         AdtStyling.VSpace(10f);
         ImGui.Separator();
         AdtStyling.VSpace(6f);
-        DrawTrackedItemsTable();
+        DrawTrackedItemsTable(list);
     }
 
-    private void DrawAddItemForm()
+    /// <summary>
+    /// Tabs across the top for every saved list, plus a "+" to create a new one and a trash icon
+    /// on the active tab to delete it (always leaves at least one list behind).
+    /// </summary>
+    private TrackedList DrawListSelector()
     {
-        ImGui.Text("Track a new item");
+        var current = CurrentList();
+
+        foreach (var list in plugin.Config.Lists)
+        {
+            var active = list.Id == current.Id;
+            if (active)
+                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(AdtStyling.WithAlpha(AdtStyling.AccentTeal, 0.35f)));
+            if (ImGui.Button($"{list.Name}##st_list_{list.Id}"))
+                selectedListId = list.Id;
+            if (active)
+                ImGui.PopStyleColor();
+            ImGui.SameLine();
+        }
+
+        if (AdtIconButton.Draw(FontAwesomeIcon.Plus, "##st_list_add", 24f, tooltip: "New list"))
+        {
+            var created = new TrackedList { Name = $"List {plugin.Config.Lists.Count + 1}" };
+            plugin.Config.Lists.Add(created);
+            selectedListId = created.Id;
+            plugin.SaveConfig();
+        }
+        ImGui.SameLine();
+
+        ImGui.SetNextItemWidth(160f);
+        var name = current.Name;
+        if (ImGui.InputText("##st_list_rename", ref name, 64) && name.Length > 0)
+        {
+            current.Name = name;
+            plugin.SaveConfig();
+        }
+        ImGui.SameLine();
+
+        var canDelete = plugin.Config.Lists.Count > 1;
+        ImGui.BeginDisabled(!canDelete);
+        if (AdtIconButton.Draw(FontAwesomeIcon.Trash, "##st_list_delete", 24f, tooltip: canDelete ? "Delete this list" : "At least one list must remain"))
+        {
+            plugin.Config.Lists.Remove(current);
+            selectedListId = plugin.Config.Lists[0].Id;
+            plugin.SaveConfig();
+            plugin.RefreshStatuses();
+        }
+        ImGui.EndDisabled();
+
+        return CurrentList();
+    }
+
+    private void DrawAddItemForm(TrackedList list)
+    {
+        ImGui.Text($"Track a new item in \"{list.Name}\"");
 
         ImGui.SetNextItemWidth(260f);
         if (ImGui.InputTextWithHint("##st_item_search", "Item name...", ref addItemSearch, 64))
@@ -52,38 +124,19 @@ public sealed partial class MainWindow
             }
         }
 
-        var retainers = RetainerService.GetKnownRetainers();
-        ImGui.SetNextItemWidth(200f);
-        var retainerLabel = retainers.FirstOrDefault(r => r.RetainerId == addRetainerId).Name ?? "Select a retainer...";
-        if (ImGui.BeginCombo("##st_retainer_pick", retainerLabel))
-        {
-            if (retainers.Count == 0)
-                ImGui.TextDisabled("No retainers found - visit a retainer bell at least once this session.");
-
-            foreach (var retainer in retainers)
-            {
-                if (ImGui.Selectable(retainer.Name, retainer.RetainerId == addRetainerId))
-                    addRetainerId = retainer.RetainerId;
-            }
-            ImGui.EndCombo();
-        }
-
         ImGui.SameLine();
         ImGui.SetNextItemWidth(100f);
         ImGui.InputInt("Target qty", ref addTargetQuantity);
         addTargetQuantity = Math.Max(1, addTargetQuantity);
 
-        var canAdd = addItemSelected is not null && addRetainerId != 0;
+        var canAdd = addItemSelected is not null;
         ImGui.BeginDisabled(!canAdd);
         if (ImGui.Button("Add"))
         {
-            var retainerName = retainers.FirstOrDefault(r => r.RetainerId == addRetainerId).Name ?? string.Empty;
-            plugin.Config.TrackedItems.Add(new TrackedItem
+            list.Items.Add(new TrackedItem
             {
                 ItemId = addItemSelected!.Value.Id,
                 ItemName = addItemSelected.Value.Name,
-                RetainerId = addRetainerId,
-                RetainerName = retainerName,
                 TargetQuantity = (uint)addTargetQuantity,
             });
             plugin.SaveConfig();
@@ -95,34 +148,32 @@ public sealed partial class MainWindow
         ImGui.EndDisabled();
     }
 
-    private void DrawTrackedItemsTable()
+    private void DrawTrackedItemsTable(TrackedList list)
     {
         ImGui.Text("Tracked items");
-        if (plugin.Config.TrackedItems.Count == 0)
+        ImGui.TextDisabled("Target stock is the total across all of your retainers combined, not per retainer.");
+        if (list.Items.Count == 0)
         {
-            ImGui.TextDisabled("Nothing tracked yet.");
+            ImGui.TextDisabled("Nothing tracked yet in this list.");
             return;
         }
 
-        if (!ImGui.BeginTable("##st_tracked_table", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH))
+        if (!ImGui.BeginTable("##st_tracked_table", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH))
             return;
 
         ImGui.TableSetupColumn("Item");
-        ImGui.TableSetupColumn("Retainer");
         ImGui.TableSetupColumn("Target");
-        ImGui.TableSetupColumn("Current");
+        ImGui.TableSetupColumn("Current (all retainers)");
         ImGui.TableSetupColumn("");
         ImGui.TableHeadersRow();
 
         TrackedItem? toRemove = null;
-        foreach (var item in plugin.Config.TrackedItems.ToList())
+        foreach (var item in list.Items.ToList())
         {
-            var status = plugin.Statuses.FirstOrDefault(s => s.Item == item);
+            var status = plugin.Statuses.FirstOrDefault(s => s.List.Id == list.Id && s.Item == item);
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
             ImGui.Text(item.ItemName);
-            ImGui.TableNextColumn();
-            ImGui.Text(item.RetainerName);
             ImGui.TableNextColumn();
             ImGui.Text(item.TargetQuantity.ToString("N0"));
             ImGui.TableNextColumn();
@@ -136,7 +187,7 @@ public sealed partial class MainWindow
                 ImGui.TextDisabled("-");
             }
             ImGui.TableNextColumn();
-            if (AdtIconButton.Draw(FontAwesomeIcon.Trash, $"##st_remove_{item.ItemId}_{item.RetainerId}", 24f, tooltip: "Stop tracking"))
+            if (AdtIconButton.Draw(FontAwesomeIcon.Trash, $"##st_remove_{list.Id}_{item.ItemId}", 24f, tooltip: "Stop tracking"))
                 toRemove = item;
         }
 
@@ -144,7 +195,7 @@ public sealed partial class MainWindow
 
         if (toRemove is not null)
         {
-            plugin.Config.TrackedItems.Remove(toRemove);
+            list.Items.Remove(toRemove);
             plugin.SaveConfig();
             plugin.RefreshStatuses();
         }

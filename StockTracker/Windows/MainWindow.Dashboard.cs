@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Numerics;
 using StockTracker.Windows.Adt;
 using Dalamud.Bindings.ImGui;
 
@@ -14,17 +13,21 @@ public sealed partial class MainWindow
         if (!plugin.AllaganTools.IsAvailable)
         {
             ImGui.TextWrapped(
-                "Allagan Tools (InventoryTools) is required: StockTracker reads each retainer's " +
-                "current market listing quantity from it to know whether an item has sold below " +
-                "target. Install or enable it, then return here - StockTracker detects it automatically.");
+                "Allagan Tools (InventoryTools) is required: StockTracker reads each item's total " +
+                "retainer market listing quantity (summed across all your retainers) from it to know " +
+                "whether it has sold below target. Install or enable it, then return here - StockTracker " +
+                "detects it automatically.");
         }
         ImGui.Separator();
         AdtStyling.VSpace(8f);
 
-        var tracked = plugin.Config.TrackedItems.Count;
+        var lists = plugin.Config.Lists.Count;
+        var tracked = plugin.Config.Lists.Sum(list => list.Items.Count);
         var needsRecraft = plugin.NeedsRecraft.Count();
 
-        const float tileWidth = 160f;
+        const float tileWidth = 150f;
+        AdtStatTile.Draw("Lists", lists.ToString("N0"), "saved", AdtStyling.AccentSlate, tileWidth);
+        ImGui.SameLine();
         AdtStatTile.Draw("Tracked Items", tracked.ToString("N0"), "configured", AdtStyling.AccentTeal, tileWidth);
         ImGui.SameLine();
         AdtStatTile.Draw("Needs Recraft", needsRecraft.ToString("N0"), "below target",
@@ -41,7 +44,7 @@ public sealed partial class MainWindow
         }
         else
         {
-            ImGui.TextWrapped("Every tracked item currently meets its target stock on its retainer.");
+            ImGui.TextWrapped("Every tracked item currently meets its target stock across your retainers.");
         }
     }
 }

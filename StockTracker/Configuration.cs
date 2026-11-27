@@ -6,34 +6,37 @@ using System.Text.Json;
 namespace StockTracker;
 
 /// <summary>
-/// Persisted plugin state: the player's hand-maintained list of tracked items. Plain JSON file in
-/// the plugin config directory (same pattern as AutoMarket's marketCache.json) rather than
+/// Persisted plugin state: the player's hand-maintained lists of tracked items. Plain JSON file
+/// in the plugin config directory (same pattern as AutoMarket's marketCache.json) rather than
 /// Dalamud's IPluginConfiguration, since there is nothing version-sensitive here yet.
 /// </summary>
 public sealed class Configuration
 {
-    public List<TrackedItem> TrackedItems { get; set; } = [];
+    public List<TrackedList> Lists { get; set; } = [];
 
     /// <summary>
-    /// Item ids currently below target that the player has manually dismissed from the "needs
-    /// recraft" list without actually restocking (e.g. they don't plan to make more right now).
-    /// Cleared automatically once that item's stock reaches its target again.
+    /// "{ListId}:{ItemId}" keys for (list, item) pairs the player has manually dismissed from the
+    /// "needs recraft" view without actually restocking. Cleared automatically once that item's
+    /// total stock reaches its target again.
     /// </summary>
-    public HashSet<uint> DismissedItemIds { get; set; } = [];
+    public HashSet<string> DismissedKeys { get; set; } = [];
 
     public static Configuration Load(string path)
     {
         try
         {
             if (!File.Exists(path))
-                return new Configuration();
+                return new Configuration { Lists = [new TrackedList { Name = "Default" }] };
 
-            return JsonSerializer.Deserialize<Configuration>(File.ReadAllText(path)) ?? new Configuration();
+            var config = JsonSerializer.Deserialize<Configuration>(File.ReadAllText(path)) ?? new Configuration();
+            if (config.Lists.Count == 0)
+                config.Lists.Add(new TrackedList { Name = "Default" });
+            return config;
         }
         catch (Exception ex)
         {
             Plugin.Log.Warning(ex, "StockTracker configuration could not be loaded; starting fresh");
-            return new Configuration();
+            return new Configuration { Lists = [new TrackedList { Name = "Default" }] };
         }
     }
 

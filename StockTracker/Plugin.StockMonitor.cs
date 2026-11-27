@@ -7,19 +7,22 @@ namespace StockTracker;
 
 public sealed partial class Plugin
 {
-    /// <summary>How often the retainer stock levels are recomputed against Allagan Tools' cache.</summary>
+    /// <summary>How often retainer stock levels are recomputed against Allagan Tools' cache.</summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
 
     private DateTime lastPoll = DateTime.MinValue;
 
     /// <summary>
-    /// First-seen-below-target timestamp per item id, purely in-memory (resets on plugin reload).
-    /// Used only to sort/age the "needs recraft" list - the underlying truth (is it below target
-    /// right now) is always recomputed live from Allagan Tools, never trusted from this cache.
+    /// First-seen-below-target timestamp per "{ListId}:{ItemId}" key, purely in-memory (resets on
+    /// plugin reload). Used only to sort/age the "needs recraft" list - the underlying truth (is
+    /// it below target right now) is always recomputed live from Allagan Tools, never trusted
+    /// from this cache.
     /// </summary>
-    private readonly Dictionary<uint, DateTimeOffset> firstSeenBelowTarget = [];
+    private readonly Dictionary<string, DateTimeOffset> firstSeenBelowTarget = [];
 
     internal List<StockStatus> Statuses { get; private set; } = [];
+
+    private static string Key(Guid listId, uint itemId) => $"{listId}:{itemId}";
 
     private void OnFrameworkUpdate(IFramework framework)
     {
@@ -31,51 +34,65 @@ public sealed partial class Plugin
     }
 
     /// <summary>
-    /// Recomputes every tracked item's current retainer-market quantity and whether it is below
-    /// its target. An item automatically drops off the "needs recraft" list the moment Allagan
-    /// Tools reports it back at or above target (i.e. the player re-listed enough), and any
-    /// manual dismissal for that item is cleared at the same time so a future sale re-flags it.
+    /// Recomputes every tracked item's current total retainer-market quantity (summed across all
+    /// retainers) and whether it is below its target, in every list. An item automatically drops
+    /// off the "needs recraft" list the moment Allagan Tools reports it back at or above target
+    /// (i.e. the player re-listed enough), and any manual dismissal for that (list, item) pair is
+    /// cleared at the same time so a future sale re-flags it. The same item id is evaluated
+    /// independently per list, since each list can set its own target for it.
     /// </summary>
     internal void RefreshStatuses()
     {
         var now = DateTimeOffset.UtcNow;
-        var statuses = new List<StockStatus>(Config.TrackedItems.Count);
+        var statuses = new List<StockStatus>();
 
-        foreach (var item in Config.TrackedItems)
+        // Cache per-item lookups within a single poll, since the same item id can appear in
+        // multiple lists and each lookup is an IPC round-trip.
+        var quantityCache = new Dictionary<uint, uint>();
+
+        foreach (var list in Config.Lists)
         {
-            if (!item.Enabled)
-                continue;
-
-            var quantities = AllaganTools.GetRetainerMarketQuantities(item.ItemId);
-            var current = quantities.GetValueOrDefault(item.RetainerId, 0u);
-            var below = AllaganTools.IsAvailable && current < item.TargetQuantity;
-
-            if (below)
+            foreach (var item in list.Items)
             {
-                if (!firstSeenBelowTarget.ContainsKey(item.ItemId))
-                    firstSeenBelowTarget[item.ItemId] = now;
-            }
-            else
-            {
-                firstSeenBelowTarget.Remove(item.ItemId);
-                if (Config.DismissedItemIds.Remove(item.ItemId))
-                    SaveConfig();
-            }
+                if (!item.Enabled)
+                    continue;
 
-            statuses.Add(new StockStatus(item, current, below, firstSeenBelowTarget.GetValueOrDefault(item.ItemId)));
+                if (!quantityCache.TryGetValue(item.ItemId, out var current))
+                {
+                    current = AllaganTools.GetTotalRetainerMarketQuantity(item.ItemId);
+                    quantityCache[item.ItemId] = current;
+                }
+
+                var key = Key(list.Id, item.ItemId);
+                var below = AllaganTools.IsAvailable && current < item.TargetQuantity;
+
+                if (below)
+                {
+                    if (!firstSeenBelowTarget.ContainsKey(key))
+                        firstSeenBelowTarget[key] = now;
+                }
+                else
+                {
+                    firstSeenBelowTarget.Remove(key);
+                    if (Config.DismissedKeys.Remove(key))
+                        SaveConfig();
+                }
+
+                statuses.Add(new StockStatus(list, item, current, below, firstSeenBelowTarget.GetValueOrDefault(key)));
+            }
         }
 
         Statuses = statuses;
     }
 
-    /// <summary>Items below target and not manually dismissed - what the "Needs Recraft" tab shows.</summary>
+    /// <summary>Items below target and not manually dismissed, across every list - what the "Needs Recraft" tab shows.</summary>
     internal IEnumerable<StockStatus> NeedsRecraft => Statuses
-        .Where(status => status.NeedsRecraft && !Config.DismissedItemIds.Contains(status.Item.ItemId))
+        .Where(status => status.NeedsRecraft && !Config.DismissedKeys.Contains(Key(status.List.Id, status.Item.ItemId)))
         .OrderBy(status => status.FirstSeenBelowTarget);
 
-    internal void DismissRecraft(uint itemId)
+    internal void DismissRecraft(Guid listId, uint itemId)
     {
-        if (Config.DismissedItemIds.Add(itemId))
+        if (Config.DismissedKeys.Add(Key(listId, itemId)))
             SaveConfig();
     }
 }

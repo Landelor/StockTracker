@@ -119,9 +119,10 @@ public sealed partial class MainWindow
         if (needsRecraft > 0)
             return ("ACTION NEEDED", AdtStyling.AccentAmber, AdtStyling.Lighten(AdtStyling.AccentAmber, 0.2f), $"{needsRecraft:N0} item(s) need recrafting");
 
-        if (plugin.Config.TrackedItems.Count == 0)
+        var tracked = plugin.Config.Lists.Sum(list => list.Items.Count);
+        if (tracked == 0)
             return ("IDLE", AdtStyling.AccentSlate, AdtStyling.Lighten(AdtStyling.AccentSlate, 0.2f), "No items tracked yet");
 
-        return ("STOCKED", AdtStyling.AccentMint, AdtStyling.Lighten(AdtStyling.AccentMint, 0.2f), $"All {plugin.Config.TrackedItems.Count:N0} tracked item(s) fully stocked");
+        return ("STOCKED", AdtStyling.AccentMint, AdtStyling.Lighten(AdtStyling.AccentMint, 0.2f), $"All {tracked:N0} tracked item(s) fully stocked");
     }
 }

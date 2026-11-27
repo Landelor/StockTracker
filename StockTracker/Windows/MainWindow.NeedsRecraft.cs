@@ -10,7 +10,7 @@ public sealed partial class MainWindow
     private void DrawNeedsRecraftTab()
     {
         ImGui.Text("Needs Recraft");
-        ImGui.TextDisabled("Tracked items whose retainer stock has sold below its target quantity.");
+        ImGui.TextDisabled("Tracked items whose total retainer stock has sold below their target quantity, across every list.");
         AdtStyling.VSpace(8f);
 
         if (!plugin.AllaganTools.IsAvailable)
@@ -30,33 +30,33 @@ public sealed partial class MainWindow
             return;
 
         ImGui.TableSetupColumn("Item");
-        ImGui.TableSetupColumn("Retainer");
+        ImGui.TableSetupColumn("List");
         ImGui.TableSetupColumn("Target");
-        ImGui.TableSetupColumn("Current");
+        ImGui.TableSetupColumn("Current (all retainers)");
         ImGui.TableSetupColumn("");
         ImGui.TableHeadersRow();
 
-        uint? dismiss = null;
+        (System.Guid ListId, uint ItemId)? dismiss = null;
         foreach (var status in needsRecraft)
         {
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
             ImGui.Text(status.Item.ItemName);
             ImGui.TableNextColumn();
-            ImGui.Text(status.Item.RetainerName);
+            ImGui.Text(status.List.Name);
             ImGui.TableNextColumn();
             ImGui.Text(status.Item.TargetQuantity.ToString("N0"));
             ImGui.TableNextColumn();
             ImGui.TextColored(AdtStyling.AccentAmber, status.CurrentQuantity.ToString("N0"));
             ImGui.TableNextColumn();
-            if (AdtIconButton.Draw(FontAwesomeIcon.Check, $"##st_dismiss_{status.Item.ItemId}_{status.Item.RetainerId}", 24f,
+            if (AdtIconButton.Draw(FontAwesomeIcon.Check, $"##st_dismiss_{status.List.Id}_{status.Item.ItemId}", 24f,
                     tooltip: "Dismiss until it sells again (doesn't change target stock)"))
-                dismiss = status.Item.ItemId;
+                dismiss = (status.List.Id, status.Item.ItemId);
         }
 
         ImGui.EndTable();
 
-        if (dismiss is { } itemId)
-            plugin.DismissRecraft(itemId);
+        if (dismiss is { } key)
+            plugin.DismissRecraft(key.ListId, key.ItemId);
     }
 }

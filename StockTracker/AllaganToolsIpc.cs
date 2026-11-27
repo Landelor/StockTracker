@@ -21,54 +21,35 @@ public sealed class AllaganToolsIpc
     /// <summary>Allagan Tools' own CriticalCommonLib.Models.InventoryCategory.RetainerMarket value.</summary>
     private const uint RetainerMarketCategory = 9;
 
-    private readonly ICallGateSubscriber<uint, bool, uint[], bool, Dictionary<ulong, uint>> getItemCountsByCharacter;
-    private readonly ICallGateSubscriber<bool, HashSet<ulong>> getCharactersOwnedByActive;
+    private readonly ICallGateSubscriber<uint, bool, uint[], bool, uint> itemCountOwnedByCategory;
 
     public AllaganToolsIpc()
     {
-        getItemCountsByCharacter = Plugin.PluginInterface
-            .GetIpcSubscriber<uint, bool, uint[], bool, Dictionary<ulong, uint>>("AllaganTools.GetItemCountsByCharacter");
-        getCharactersOwnedByActive = Plugin.PluginInterface
-            .GetIpcSubscriber<bool, HashSet<ulong>>("AllaganTools.GetCharactersOwnedByActive");
+        itemCountOwnedByCategory = Plugin.PluginInterface
+            .GetIpcSubscriber<uint, bool, uint[], bool, uint>("AllaganTools.ItemCountOwnedByCategory");
     }
 
     public bool IsAvailable => Plugin.GetPluginState("InventoryTools").Loaded;
 
     /// <summary>
-    /// How much of this item currently sits on each retainer's own market board, keyed by
-    /// retainer id. Only retainers belonging to the active character are included. Returns an
-    /// empty dictionary (no data, not "zero stock everywhere") if Allagan Tools is unavailable or
-    /// the call fails, so callers must treat "no entry" as unknown rather than confirmed-empty.
+    /// Total quantity of this item currently sitting across all of the active character's
+    /// retainers' own market boards combined (not bags, not the free company chest). Returns 0
+    /// if Allagan Tools is unavailable or the call fails - callers must check
+    /// <see cref="IsAvailable"/> separately to distinguish "confirmed zero" from "unknown".
     /// </summary>
-    public Dictionary<ulong, uint> GetRetainerMarketQuantities(uint itemId)
+    public uint GetTotalRetainerMarketQuantity(uint itemId)
     {
         if (!IsAvailable)
-            return [];
+            return 0;
 
         try
         {
-            return getItemCountsByCharacter.InvokeFunc(itemId, true, [RetainerMarketCategory], false);
+            return itemCountOwnedByCategory.InvokeFunc(itemId, true, [RetainerMarketCategory], false);
         }
         catch (Exception ex)
         {
-            Plugin.Log.Warning(ex, "Allagan Tools GetItemCountsByCharacter IPC call failed");
-            return [];
-        }
-    }
-
-    public HashSet<ulong> GetOwnedRetainerIds()
-    {
-        if (!IsAvailable)
-            return [];
-
-        try
-        {
-            return getCharactersOwnedByActive.InvokeFunc(false);
-        }
-        catch (Exception ex)
-        {
-            Plugin.Log.Warning(ex, "Allagan Tools GetCharactersOwnedByActive IPC call failed");
-            return [];
+            Plugin.Log.Warning(ex, "Allagan Tools ItemCountOwnedByCategory IPC call failed");
+            return 0;
         }
     }
 }
