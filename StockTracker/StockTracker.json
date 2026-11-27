@@ -1,0 +1,15 @@
+{
+  "Author": "Aki",
+  "Name": "StockTracker",
+  "InternalName": "StockTracker",
+  "RepoUrl": "https://github.com/Landelor/StockTracker",
+  "IconUrl": "https://raw.githubusercontent.com/Landelor/StockTracker/master/images/icon.png",
+  "Punchline": "Know which retainer listings sold and need to be recrafted.",
+  "Description": "Maintain a list of items you craft and sell through your retainers, each with a target restock quantity and an assigned retainer. StockTracker watches your retainers' current market listing quantities (via Allagan Tools, if installed) and automatically builds a 'needs recraft' list whenever a tracked item's retainer stock drops below its target - clearing it again once you restock. Commands: /stocktracker, /st. Optionally uses Allagan Tools for live stock counts.",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "retainer",
+    "crafting",
+    "market board"
+  ]
+}
