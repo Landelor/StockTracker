@@ -108,24 +108,87 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         DrawContent();
         if (!headerCollapsed && !resizeLocked)
-            DrawResizeGrip();
+            DrawResizeHandles();
     }
 
-    private void DrawResizeGrip()
+    /// <summary>
+    /// Three manual resize handles - right edge (width only), bottom edge (height only), and the
+    /// corner (both). Native ImGui border/corner resize-drag is unreliable on this custom-chrome
+    /// window (a body child covers the hit area regardless of the margin left for it - see the
+    /// dalamud-adt-ui-kit skill's history), so every direction is implemented as a plain
+    /// InvisibleButton + MouseDelta drag instead of relying on ImGui's own hit-test. Without the
+    /// edge handles, only diagonal (corner) resizing worked - dragging the right edge alone just
+    /// "snapped back" each frame because nothing was listening there at all.
+    /// </summary>
+    private void DrawResizeHandles()
     {
         var scale = Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale;
-        const float gripSize = 14f;
-        const float inset = 5f;
         const float hitSize = 22f;
-        var grip = gripSize * scale;
-        var padding = inset * scale;
         var hit = hitSize * scale;
-        var corner = ImGui.GetWindowPos() + ImGui.GetWindowSize();
+        var windowPos = ImGui.GetWindowPos();
+        var windowSize = ImGui.GetWindowSize();
+        var corner = windowPos + windowSize;
+        var headerClearance = (HeaderHeight + 8f) * scale;
 
-        ImGui.SetCursorScreenPos(corner - new Vector2(hit, hit));
-        ImGui.InvisibleButton("##st_resize_grip", new Vector2(hit, hit));
+        DrawEdgeHandle("##st_resize_right", new Vector2(corner.X - hit, windowPos.Y + headerClearance),
+            new Vector2(hit, Math.Max(1f, windowSize.Y - headerClearance - hit)), horizontal: true);
+        DrawEdgeHandle("##st_resize_bottom", new Vector2(windowPos.X, corner.Y - hit),
+            new Vector2(Math.Max(1f, windowSize.X - hit), hit), horizontal: false);
+        DrawCornerHandle(corner, scale, hit);
+    }
+
+    private void DrawEdgeHandle(string id, Vector2 pos, Vector2 size, bool horizontal)
+    {
+        var scale = Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale;
+        ImGui.SetCursorScreenPos(pos);
+        ImGui.InvisibleButton(id, size);
         var hovered = ImGui.IsItemHovered();
         var active = ImGui.IsItemActive();
+        if (hovered || active)
+            ImGui.SetMouseCursor(horizontal ? ImGuiMouseCursor.ResizeEw : ImGuiMouseCursor.ResizeNs);
+
+        if (active)
+        {
+            var current = manualSize ?? ImGui.GetWindowSize() / scale;
+            var delta = ImGui.GetIO().MouseDelta / scale;
+            var next = horizontal
+                ? new Vector2(current.X + delta.X, current.Y)
+                : new Vector2(current.X, current.Y + delta.Y);
+            manualSize = Vector2.Clamp(next, expandedConstraints.MinimumSize, expandedConstraints.MaximumSize);
+        }
+
+        if (!hovered && !active)
+            return;
+
+        var color = ImGui.GetColorU32(Adt.AdtStyling.WithAlpha(Adt.AdtStyling.AccentTeal, active ? 1f : 0.65f));
+        var dl = ImGui.GetWindowDrawList();
+        var mid = pos + size * 0.5f;
+        var thickness = 2f * scale;
+        if (horizontal)
+        {
+            var half = Math.Min(16f * scale, size.Y * 0.5f - 2f * scale);
+            dl.AddLine(mid - new Vector2(0f, half), mid + new Vector2(0f, half), color, thickness);
+        }
+        else
+        {
+            var half = Math.Min(16f * scale, size.X * 0.5f - 2f * scale);
+            dl.AddLine(mid - new Vector2(half, 0f), mid + new Vector2(half, 0f), color, thickness);
+        }
+    }
+
+    private void DrawCornerHandle(Vector2 corner, float scale, float hit)
+    {
+        const float gripSize = 14f;
+        const float inset = 5f;
+        var grip = gripSize * scale;
+        var padding = inset * scale;
+
+        ImGui.SetCursorScreenPos(corner - new Vector2(hit, hit));
+        ImGui.InvisibleButton("##st_resize_corner", new Vector2(hit, hit));
+        var hovered = ImGui.IsItemHovered();
+        var active = ImGui.IsItemActive();
+        if (hovered || active)
+            ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNwse);
         if (active)
         {
             var current = manualSize ?? ImGui.GetWindowSize() / scale;

@@ -162,7 +162,7 @@ public sealed partial class MainWindow
             return;
 
         ImGui.TableSetupColumn("Item");
-        ImGui.TableSetupColumn("Target");
+        ImGui.TableSetupColumn("Target", ImGuiTableColumnFlags.WidthFixed, 96f);
         ImGui.TableSetupColumn("Current (all retainers)");
         ImGui.TableSetupColumn("");
         ImGui.TableHeadersRow();
@@ -175,7 +175,7 @@ public sealed partial class MainWindow
             ImGui.TableNextColumn();
             ImGui.Text(item.ItemName);
             ImGui.TableNextColumn();
-            ImGui.Text(item.TargetQuantity.ToString("N0"));
+            DrawTargetStepper(list, item);
             ImGui.TableNextColumn();
             if (status is not null)
             {
@@ -199,6 +199,33 @@ public sealed partial class MainWindow
             plugin.SaveConfig();
             plugin.RefreshStatuses();
         }
+    }
+
+    /// <summary>Minus/text/plus stepper for a tracked item's target quantity - never below 1.</summary>
+    private void DrawTargetStepper(TrackedList list, TrackedItem item)
+    {
+        var scale = Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale;
+        var buttonSize = 20f * scale;
+
+        ImGui.BeginDisabled(item.TargetQuantity <= 1);
+        if (AdtIconButton.Draw(FontAwesomeIcon.Minus, $"##st_target_dec_{list.Id}_{item.ItemId}", buttonSize, tooltip: "Decrease target"))
+            SetTargetQuantity(item, item.TargetQuantity - 1);
+        ImGui.EndDisabled();
+
+        ImGui.SameLine(0f, 6f * scale);
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextUnformatted(item.TargetQuantity.ToString("N0"));
+
+        ImGui.SameLine(0f, 6f * scale);
+        if (AdtIconButton.Draw(FontAwesomeIcon.Plus, $"##st_target_inc_{list.Id}_{item.ItemId}", buttonSize, tooltip: "Increase target"))
+            SetTargetQuantity(item, item.TargetQuantity + 1);
+    }
+
+    private void SetTargetQuantity(TrackedItem item, uint quantity)
+    {
+        item.TargetQuantity = Math.Max(1u, quantity);
+        plugin.SaveConfig();
+        plugin.RefreshStatuses();
     }
 
     /// <summary>Minimal IDisposable shim so a plain ImGui.BeginListBox/EndListBox pair reads like the Raii style used elsewhere.</summary>
