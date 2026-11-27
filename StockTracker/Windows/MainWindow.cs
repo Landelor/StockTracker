@@ -15,6 +15,7 @@ public sealed partial class MainWindow : Window, IDisposable
         Dashboard,
         TrackedItems,
         NeedsRecraft,
+        Settings,
     }
 
     private readonly record struct ItemChoice(uint Id, string Name);
@@ -187,6 +188,9 @@ public sealed partial class MainWindow : Window, IDisposable
                 break;
             case MainTab.NeedsRecraft:
                 DrawNeedsRecraftTab();
+                break;
+            case MainTab.Settings:
+                DrawSettingsTab();
                 break;
         }
     }

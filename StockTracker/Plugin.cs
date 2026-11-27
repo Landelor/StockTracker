@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using StockTracker.Windows;
 using Dalamud.Game.Command;
+using Dalamud.Game.Gui.ContextMenu;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
@@ -17,6 +18,7 @@ public sealed partial class Plugin : IDalamudPlugin
 
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
+    [PluginService] internal static IContextMenu ContextMenu { get; private set; } = null!;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
@@ -24,6 +26,7 @@ public sealed partial class Plugin : IDalamudPlugin
     private readonly string configPath;
     private readonly WindowSystem windowSystem = new("StockTracker");
     private readonly MainWindow mainWindow;
+    private readonly ContextMenuService contextMenuService;
 
     internal Configuration Config { get; }
     internal AllaganToolsIpc AllaganTools { get; }
@@ -33,6 +36,7 @@ public sealed partial class Plugin : IDalamudPlugin
         configPath = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "config.json");
         Config = Configuration.Load(configPath);
         AllaganTools = new AllaganToolsIpc();
+        contextMenuService = new ContextMenuService(this);
 
         Windows.Adt.AdtFonts.Initialize(PluginInterface.UiBuilder);
         mainWindow = new MainWindow(this);
@@ -67,6 +71,7 @@ public sealed partial class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(ShortCommandName);
         windowSystem.RemoveAllWindows();
         mainWindow.Dispose();
+        contextMenuService.Dispose();
         Windows.Adt.AdtFonts.Dispose();
     }
 

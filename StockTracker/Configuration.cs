@@ -21,6 +21,14 @@ public sealed class Configuration
     /// </summary>
     public HashSet<string> DismissedKeys { get; set; } = [];
 
+    /// <summary>
+    /// When true, StockTracker adds an "Add to StockTracker list" entry to the Crafting Log's
+    /// (RecipeNote) right-click context menu for the currently selected recipe. Off by default
+    /// behavior is still opt-out, not opt-in - this flag exists purely so the player can disable
+    /// it if they find it noisy; it starts enabled.
+    /// </summary>
+    public bool ContextMenuEnabled { get; set; } = true;
+
     public static Configuration Load(string path)
     {
         try

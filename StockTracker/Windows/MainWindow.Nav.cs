@@ -21,6 +21,9 @@ public sealed partial class MainWindow
 
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + (avail - size) * 0.5f);
         DrawNavItem(MainTab.NeedsRecraft, FontAwesomeIcon.ExclamationTriangle, "Needs Recraft\nTracked items currently below target stock.", size);
+
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + (avail - size) * 0.5f);
+        DrawNavItem(MainTab.Settings, FontAwesomeIcon.Cog, "Settings\nToggle optional features.", size);
     }
 
     private void DrawNavItem(MainTab tab, FontAwesomeIcon icon, string tooltip, float size)
