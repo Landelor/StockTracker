@@ -64,7 +64,13 @@ public sealed partial class MainWindow : Window, IDisposable
     public override void PreDraw()
     {
         base.PreDraw();
-        Flags &= ~ImGuiWindowFlags.NoResize;
+        // Native ImGui border/corner resize must stay fully disabled, not just "not opted out of" -
+        // leaving it enabled let it fight the manual resize handles below: whenever native resize
+        // won a frame, the very next frame's unconditional `Size = manualSize` (needed to make our
+        // own drags stick) snapped straight back to the old size. Toggling the resize lock re-primes
+        // ImGui's native hit-test and made this surface reliably, but the underlying conflict was
+        // always there - only our own InvisibleButton-based handles may ever change this window's size.
+        Flags |= ImGuiWindowFlags.NoResize;
         if (headerCollapsed)
         {
             var collapsedHeight = (HeaderHeight + 8f) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale;
