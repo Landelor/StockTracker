@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using StockTracker.Windows.Adt;
 using Dalamud.Bindings.ImGui;
@@ -29,7 +30,7 @@ public sealed partial class MainWindow
             return;
         }
 
-        DrawArtisanExportButton(needsRecraft);
+        DrawArtisanExportButtons(needsRecraft);
         AdtStyling.VSpace(8f);
 
         if (!ImGui.BeginTable("##st_recraft_table", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH))
@@ -70,30 +71,38 @@ public sealed partial class MainWindow
     /// Copies every currently-visible "needs recraft" item to the clipboard as an Artisan-shaped
     /// crafting list (see ArtisanExport) - paste it straight into Artisan's own "Import List From
     /// Clipboard (Artisan Export)" button. Each item's craft count is its stock deficit
-    /// (target - current), converted from item count to recipe-run count by ArtisanExport.
+    /// (target - current), converted from item count to recipe-run count by ArtisanExport. The
+    /// second button does the same thing but also walks each recipe's ingredients for any that
+    /// are themselves craftable, adding those sub-craft recipes (and their own sub-crafts) too,
+    /// in dependency order, so the imported list can be run top-to-bottom from base materials up.
     /// </summary>
-    private void DrawArtisanExportButton(System.Collections.Generic.List<StockStatus> needsRecraft)
+    private void DrawArtisanExportButtons(List<StockStatus> needsRecraft)
     {
+        IEnumerable<(uint ItemId, uint Deficit)> Deficits() => needsRecraft.Select(status => (
+            status.Item.ItemId,
+            Deficit: status.Item.TargetQuantity > status.CurrentQuantity
+                ? status.Item.TargetQuantity - status.CurrentQuantity
+                : 1u));
+
         if (ImGui.Button("Export to Artisan (Copy to Clipboard)"))
-        {
-            var deficits = needsRecraft.Select(status => (
-                status.Item.ItemId,
-                Deficit: status.Item.TargetQuantity > status.CurrentQuantity
-                    ? status.Item.TargetQuantity - status.CurrentQuantity
-                    : 1u));
+            CopyArtisanExport(ArtisanExport.Build($"StockTracker Recraft {DateTime.Now:yyyy-MM-dd HH:mm}", Deficits()));
 
-            var result = ArtisanExport.Build($"StockTracker Recraft {DateTime.Now:yyyy-MM-dd HH:mm}", deficits);
-            ImGui.SetClipboardText(result.Json);
-
-            artisanExportStatus = result.SkippedCount > 0
-                ? $"Copied {result.ExportedCount} item(s) \u2014 {result.SkippedCount} skipped (no known recipe). Paste into Artisan's \"Import List From Clipboard\" button."
-                : $"Copied {result.ExportedCount} item(s) to the clipboard. Paste into Artisan's \"Import List From Clipboard (Artisan Export)\" button.";
-        }
+        ImGui.SameLine();
+        if (ImGui.Button("Export to Artisan with Subcrafts (Copy to Clipboard)"))
+            CopyArtisanExport(ArtisanExport.BuildWithSubcrafts($"StockTracker Recraft (Subcrafts) {DateTime.Now:yyyy-MM-dd HH:mm}", Deficits()));
 
         if (artisanExportStatus is not null)
         {
             AdtStyling.VSpace(4f);
             ImGui.TextColored(AdtStyling.AccentMint, artisanExportStatus);
         }
+    }
+
+    private void CopyArtisanExport(ArtisanExport.ExportResult result)
+    {
+        ImGui.SetClipboardText(result.Json);
+        artisanExportStatus = result.SkippedCount > 0
+            ? $"Copied {result.ExportedCount} item(s) \u2014 {result.SkippedCount} skipped (no known recipe). Paste into Artisan's \"Import List From Clipboard\" button."
+            : $"Copied {result.ExportedCount} item(s) to the clipboard. Paste into Artisan's \"Import List From Clipboard (Artisan Export)\" button.";
     }
 }
