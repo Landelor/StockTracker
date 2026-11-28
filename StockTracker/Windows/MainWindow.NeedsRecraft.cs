@@ -38,7 +38,7 @@ public sealed partial class MainWindow
 
         ImGui.TableSetupColumn("Item");
         ImGui.TableSetupColumn("List");
-        ImGui.TableSetupColumn("Target", ImGuiTableColumnFlags.WidthFixed, 96f);
+        ImGui.TableSetupColumn("Target", ImGuiTableColumnFlags.WidthFixed, 72f);
         ImGui.TableSetupColumn("Current (all retainers)");
         ImGui.TableSetupColumn("");
         ImGui.TableHeadersRow();
@@ -52,7 +52,7 @@ public sealed partial class MainWindow
             ImGui.TableNextColumn();
             ImGui.Text(status.List.Name);
             ImGui.TableNextColumn();
-            DrawTargetStepper(status.List, status.Item);
+            ImGui.Text(status.Item.TargetQuantity.ToString("N0"));
             ImGui.TableNextColumn();
             ImGui.TextColored(AdtStyling.AccentAmber, status.CurrentQuantity.ToString("N0"));
             ImGui.TableNextColumn();
