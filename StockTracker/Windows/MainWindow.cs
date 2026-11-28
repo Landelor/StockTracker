@@ -24,7 +24,6 @@ public sealed partial class MainWindow : Window, IDisposable
     private readonly List<ItemChoice> items = [];
     private readonly WindowSizeConstraints expandedConstraints;
     private MainTab activeTab = MainTab.Dashboard;
-    private Guid selectedListId;
     private bool headerCollapsed;
     private bool resizeLocked;
     private IDisposable? chrome;

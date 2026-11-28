@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using StockTracker.Windows.Adt;
@@ -9,104 +10,104 @@ namespace StockTracker.Windows;
 
 public sealed partial class MainWindow
 {
-    private string addItemSearch = string.Empty;
-    private ItemChoice? addItemSelected;
-    private int addTargetQuantity = 1;
-    private string newListName = string.Empty;
-
-    private TrackedList CurrentList()
+    /// <summary>Per-list "add item" form state, so two lists expanded at once don't share one search box.</summary>
+    private sealed class AddItemFormState
     {
-        var list = plugin.Config.Lists.FirstOrDefault(l => l.Id == selectedListId)
-                   ?? plugin.Config.Lists.FirstOrDefault();
-        if (list is null)
-        {
-            list = new TrackedList { Name = "Default" };
-            plugin.Config.Lists.Add(list);
-            plugin.SaveConfig();
-        }
-
-        selectedListId = list.Id;
-        return list;
+        public string Search = string.Empty;
+        public ItemChoice? Selected;
+        public int TargetQuantity = 1;
     }
 
-    private void DrawTrackedItemsTab()
-    {
-        var list = DrawListSelector();
-        AdtStyling.VSpace(8f);
-        ImGui.Separator();
-        AdtStyling.VSpace(6f);
+    private readonly Dictionary<Guid, AddItemFormState> addItemForms = new();
 
-        DrawAddItemForm(list);
-        AdtStyling.VSpace(10f);
-        ImGui.Separator();
-        AdtStyling.VSpace(6f);
-        DrawTrackedItemsTable(list);
-    }
+    private AddItemFormState FormFor(Guid listId) =>
+        addItemForms.TryGetValue(listId, out var state) ? state : addItemForms[listId] = new AddItemFormState();
 
     /// <summary>
-    /// Tabs across the top for every saved list, plus a "+" to create a new one and a trash icon
-    /// on the active tab to delete it (always leaves at least one list behind).
+    /// Every saved list, each in its own collapsible section (click the header to expand/collapse
+    /// it) rather than one tab-selector showing a single list at a time - makes it easy to glance
+    /// over several lists, or fold away ones you aren't working on right now. ImGui remembers each
+    /// section's open/closed state by itself for the rest of the game session.
     /// </summary>
-    private TrackedList DrawListSelector()
+    private void DrawTrackedItemsTab()
     {
-        var current = CurrentList();
-
-        foreach (var list in plugin.Config.Lists)
-        {
-            var active = list.Id == current.Id;
-            if (active)
-                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(AdtStyling.WithAlpha(AdtStyling.AccentTeal, 0.35f)));
-            if (ImGui.Button($"{list.Name}##st_list_{list.Id}"))
-                selectedListId = list.Id;
-            if (active)
-                ImGui.PopStyleColor();
-            ImGui.SameLine();
-        }
+        ImGui.Text("Tracked Lists");
+        ImGui.TextDisabled("Target stock is the total across all of your retainers combined, not per retainer.");
+        AdtStyling.VSpace(8f);
 
         if (AdtIconButton.Draw(FontAwesomeIcon.Plus, "##st_list_add", 24f, tooltip: "New list"))
         {
             var created = new TrackedList { Name = $"List {plugin.Config.Lists.Count + 1}" };
             plugin.Config.Lists.Add(created);
-            selectedListId = created.Id;
             plugin.SaveConfig();
         }
         ImGui.SameLine();
+        ImGui.TextDisabled("Add a new list");
 
-        ImGui.SetNextItemWidth(160f);
-        var name = current.Name;
-        if (ImGui.InputText("##st_list_rename", ref name, 64) && name.Length > 0)
+        AdtStyling.VSpace(8f);
+        ImGui.Separator();
+
+        TrackedList? toDelete = null;
+        foreach (var list in plugin.Config.Lists.ToList())
         {
-            current.Name = name;
-            plugin.SaveConfig();
+            AdtStyling.VSpace(6f);
+            ImGui.PushID(list.Id.ToString());
+
+            var headerLabel = $"{list.Name} ({list.Items.Count})###st_list_header_{list.Id}";
+            var expanded = ImGui.CollapsingHeader(headerLabel, ImGuiTreeNodeFlags.DefaultOpen);
+            if (expanded)
+            {
+                ImGui.Indent();
+                DrawListControls(list, plugin.Config.Lists.Count > 1, () => toDelete = list);
+                AdtStyling.VSpace(6f);
+                DrawAddItemForm(list);
+                AdtStyling.VSpace(10f);
+                DrawTrackedItemsTable(list);
+                ImGui.Unindent();
+            }
+
+            ImGui.PopID();
         }
-        ImGui.SameLine();
 
-        var canDelete = plugin.Config.Lists.Count > 1;
-        ImGui.BeginDisabled(!canDelete);
-        if (AdtIconButton.Draw(FontAwesomeIcon.Trash, "##st_list_delete", 24f, tooltip: canDelete ? "Delete this list" : "At least one list must remain"))
+        if (toDelete is not null)
         {
-            plugin.Config.Lists.Remove(current);
-            selectedListId = plugin.Config.Lists[0].Id;
+            plugin.Config.Lists.Remove(toDelete);
             plugin.SaveConfig();
             plugin.RefreshStatuses();
         }
-        ImGui.EndDisabled();
+    }
 
-        return CurrentList();
+    private void DrawListControls(TrackedList list, bool canDelete, Action requestDelete)
+    {
+        ImGui.SetNextItemWidth(220f);
+        var name = list.Name;
+        if (ImGui.InputText("##st_list_rename", ref name, 64) && name.Length > 0)
+        {
+            list.Name = name;
+            plugin.SaveConfig();
+        }
+        ImGui.SameLine();
+
+        ImGui.BeginDisabled(!canDelete);
+        if (AdtIconButton.Draw(FontAwesomeIcon.Trash, "##st_list_delete", 24f, tooltip: canDelete ? "Delete this list" : "At least one list must remain"))
+            requestDelete();
+        ImGui.EndDisabled();
     }
 
     private void DrawAddItemForm(TrackedList list)
     {
+        var form = FormFor(list.Id);
+
         ImGui.Text($"Track a new item in \"{list.Name}\"");
 
         ImGui.SetNextItemWidth(260f);
-        if (ImGui.InputTextWithHint("##st_item_search", "Item name...", ref addItemSearch, 64))
-            addItemSelected = null;
+        if (ImGui.InputTextWithHint("##st_item_search", "Item name...", ref form.Search, 64))
+            form.Selected = null;
 
-        if (addItemSearch.Length >= 2 && addItemSelected is null)
+        if (form.Search.Length >= 2 && form.Selected is null)
         {
             var matches = items
-                .Where(item => item.Name.Contains(addItemSearch, StringComparison.OrdinalIgnoreCase))
+                .Where(item => item.Name.Contains(form.Search, StringComparison.OrdinalIgnoreCase))
                 .Take(12)
                 .ToList();
 
@@ -117,8 +118,8 @@ public sealed partial class MainWindow
                 {
                     if (ImGui.Selectable(match.Name))
                     {
-                        addItemSelected = match;
-                        addItemSearch = match.Name;
+                        form.Selected = match;
+                        form.Search = match.Name;
                     }
                 }
             }
@@ -126,39 +127,37 @@ public sealed partial class MainWindow
 
         ImGui.SameLine();
         ImGui.SetNextItemWidth(100f);
-        ImGui.InputInt("Target qty", ref addTargetQuantity);
-        addTargetQuantity = Math.Max(1, addTargetQuantity);
+        ImGui.InputInt("Target qty", ref form.TargetQuantity);
+        form.TargetQuantity = Math.Max(1, form.TargetQuantity);
 
-        var canAdd = addItemSelected is not null;
+        var canAdd = form.Selected is not null;
         ImGui.BeginDisabled(!canAdd);
         if (ImGui.Button("Add"))
         {
             list.Items.Add(new TrackedItem
             {
-                ItemId = addItemSelected!.Value.Id,
-                ItemName = addItemSelected.Value.Name,
-                TargetQuantity = (uint)addTargetQuantity,
+                ItemId = form.Selected!.Value.Id,
+                ItemName = form.Selected.Value.Name,
+                TargetQuantity = (uint)form.TargetQuantity,
             });
             plugin.SaveConfig();
             plugin.RefreshStatuses();
-            addItemSearch = string.Empty;
-            addItemSelected = null;
-            addTargetQuantity = 1;
+            form.Search = string.Empty;
+            form.Selected = null;
+            form.TargetQuantity = 1;
         }
         ImGui.EndDisabled();
     }
 
     private void DrawTrackedItemsTable(TrackedList list)
     {
-        ImGui.Text("Tracked items");
-        ImGui.TextDisabled("Target stock is the total across all of your retainers combined, not per retainer.");
         if (list.Items.Count == 0)
         {
             ImGui.TextDisabled("Nothing tracked yet in this list.");
             return;
         }
 
-        if (!ImGui.BeginTable("##st_tracked_table", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH))
+        if (!ImGui.BeginTable($"##st_tracked_table_{list.Id}", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH))
             return;
 
         ImGui.TableSetupColumn("Item");
