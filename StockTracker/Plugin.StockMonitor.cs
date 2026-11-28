@@ -52,6 +52,9 @@ public sealed partial class Plugin
 
         foreach (var list in Config.Lists)
         {
+            if (!list.Enabled)
+                continue;
+
             foreach (var item in list.Items)
             {
                 if (!item.Enabled)

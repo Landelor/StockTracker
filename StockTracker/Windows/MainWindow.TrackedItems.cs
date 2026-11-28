@@ -53,8 +53,16 @@ public sealed partial class MainWindow
             AdtStyling.VSpace(6f);
             ImGui.PushID(list.Id.ToString());
 
-            var headerLabel = $"{list.Name} ({list.Items.Count})###st_list_header_{list.Id}";
+            var headerLabel = list.Enabled
+                ? $"{list.Name} ({list.Items.Count})###st_list_header_{list.Id}"
+                : $"{list.Name} ({list.Items.Count}) - disabled###st_list_header_{list.Id}";
+
+            if (!list.Enabled)
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
             var expanded = ImGui.CollapsingHeader(headerLabel, ImGuiTreeNodeFlags.DefaultOpen);
+            if (!list.Enabled)
+                ImGui.PopStyleColor();
+
             if (expanded)
             {
                 ImGui.Indent();
@@ -86,6 +94,18 @@ public sealed partial class MainWindow
             list.Name = name;
             plugin.SaveConfig();
         }
+        ImGui.SameLine();
+
+        var enabled = list.Enabled;
+        if (ImGui.Checkbox("Tracking enabled", ref enabled) && enabled != list.Enabled)
+        {
+            list.Enabled = enabled;
+            plugin.SaveConfig();
+            plugin.RefreshStatuses();
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Disabling a list stops it from being checked against retainer stock " +
+                              "and removes it from Needs Recraft, without deleting it or its items.");
         ImGui.SameLine();
 
         ImGui.BeginDisabled(!canDelete);

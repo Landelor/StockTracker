@@ -27,6 +27,7 @@ public sealed class TrackedList
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "New List";
+    public bool Enabled { get; set; } = true;
     public List<TrackedItem> Items { get; set; } = [];
 }
 
