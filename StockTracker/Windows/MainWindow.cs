@@ -41,6 +41,13 @@ public sealed partial class MainWindow : Window, IDisposable
         };
         SizeConstraints = expandedConstraints;
 
+        // Restore the resize lock (and the size it was locked at) from last session - a locked
+        // window is meant to stay put indefinitely, including across a plugin reload or game
+        // restart, not just reset back to responsive sizing every time the window is recreated.
+        resizeLocked = plugin.Config.WindowResizeLocked;
+        if (plugin.Config.WindowLockedWidth is { } width && plugin.Config.WindowLockedHeight is { } height)
+            manualSize = new Vector2(width, height);
+
         foreach (var item in Plugin.DataManager.GetExcelSheet<Item>())
         {
             var name = item.Name.ToString();

@@ -81,6 +81,11 @@ public sealed partial class MainWindow
             resizeLocked = !resizeLocked;
             if (resizeLocked)
                 manualSize ??= ImGui.GetWindowSize() / ImGuiHelpers.GlobalScale;
+
+            plugin.Config.WindowResizeLocked = resizeLocked;
+            plugin.Config.WindowLockedWidth = manualSize?.X;
+            plugin.Config.WindowLockedHeight = manualSize?.Y;
+            plugin.SaveConfig();
         }
     }
 

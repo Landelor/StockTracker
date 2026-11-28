@@ -29,6 +29,16 @@ public sealed class Configuration
     /// </summary>
     public bool ContextMenuEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Whether the main window's manual resize-lock was enabled, and the exact size (in UI
+    /// points, pre-DPI-scale) it was locked at. Persisted because a locked window is meant to
+    /// stay a fixed size indefinitely - including across a plugin reload or game restart, not
+    /// just within the current session.
+    /// </summary>
+    public bool WindowResizeLocked { get; set; }
+    public float? WindowLockedWidth { get; set; }
+    public float? WindowLockedHeight { get; set; }
+
     public static Configuration Load(string path)
     {
         try
